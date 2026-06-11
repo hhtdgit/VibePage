@@ -20,7 +20,33 @@ function showAppInWindow(win, title, html) {
 }
 
 /**
+ * 创建流式渲染处理器（每1秒更新一次 iframe，避免频闪）
+ */
+function createStreamHandler(iframe) {
+    let timer = null;
+    let lastUpdate = 0;
+    const THROTTLE_MS = 1000;
+
+    return (html) => {
+        const now = Date.now();
+        if (now - lastUpdate > THROTTLE_MS) {
+            iframe.srcdoc = html;
+            lastUpdate = now;
+            if (timer) { clearTimeout(timer); timer = null; }
+        } else {
+            if (timer) clearTimeout(timer);
+            timer = setTimeout(() => {
+                iframe.srcdoc = html;
+                lastUpdate = Date.now();
+                timer = null;
+            }, THROTTLE_MS);
+        }
+    };
+}
+
+/**
  * 打开应用（已打开的则置前，否则新建）
+ * 采用"骨架优先"策略：先快速生成布局骨架，再生成完整版替换
  * @param {string} appName - 应用标识
  * @param {string} appTitle - 显示标题
  * @param {string} icon - 显示的图标 emoji
@@ -36,26 +62,40 @@ async function openApp(appName, appTitle, icon = '📄') {
     // 新建窗口
     const windowId = windowManager.createWindow(appName, appTitle, icon);
     const win = windowManager.getWindow(windowId);
+    const iframe = win.element.querySelector('iframe');
 
     showLoadingInWindow(win, appTitle);
+    windowManager.showHeaderSpinner(windowId);
 
+    // 第 1 步：快速骨架（流式渲染到 iframe）
+    aiGenerator.onChunk = createStreamHandler(iframe);
+    await aiGenerator.generatePreview(appName);
+
+    // 第 2 步：完整版（流式替换骨架）
+    aiGenerator.onChunk = createStreamHandler(iframe);
     const html = await aiGenerator.generateApp(appName);
     showAppInWindow(win, `🤖 ${appTitle}`, html);
+
+    aiGenerator.onChunk = null;
+    windowManager.hideHeaderSpinner(windowId);
 
     // 内容加载后自适应高度
     windowManager.fitIframeContent(windowId);
 }
 
 /**
- * AI 重新渲染窗口内容（全量刷新 + 旋转加载覆盖层）
+ * AI 重新渲染窗口内容（标题栏转圈 + 流式更新，不阻塞 iframe）
  */
 async function reRenderApp(windowId, prompt, context) {
     const win = windowManager.getWindow(windowId);
     if (!win) return;
 
-    windowManager.showLoadingOverlay(windowId);
-
     const iframe = win.element.querySelector('iframe');
+
+    // 标题栏转圈 + 流式渐进渲染（不阻塞 iframe 交互）
+    windowManager.showHeaderSpinner(windowId);
+    aiGenerator.onChunk = createStreamHandler(iframe);
+
     const html = await aiGenerator.regenerateApp(win.appName, prompt, context);
 
     if (iframe) {
@@ -63,7 +103,8 @@ async function reRenderApp(windowId, prompt, context) {
         win.element.querySelector('.window-title').textContent = `🤖 ${win.appTitle}`;
     }
 
-    windowManager.hideLoadingOverlay(windowId);
+    aiGenerator.onChunk = null;
+    windowManager.hideHeaderSpinner(windowId);
     windowManager.fitIframeContent(windowId);
     windowManager.bringToFront(windowId);
 }

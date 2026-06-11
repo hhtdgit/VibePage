@@ -84,14 +84,13 @@ function checkPortInUse(port) {
         });
     }
 
-    // 处理 API 请求
+    // 处理 API 请求（流式 SSE）
     async function handleAPI(req, res) {
-        // 读取请求体
         let body = '';
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const { systemPrompt, userPrompt } = JSON.parse(body);
+                const { systemPrompt, userPrompt, preview } = JSON.parse(body);
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -106,23 +105,59 @@ function checkPortInUse(port) {
                             { role: 'user', content: userPrompt }
                         ],
                         temperature: 0.7,
-                        max_tokens: 80000
+                        max_tokens: preview ? 800 : 20000,
+                        stream: true
                     })
                 });
 
-                const data = await response.json();
-
                 if (!response.ok) {
-                    throw new Error(data.error?.message || 'DeepSeek API Error');
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.error?.message || 'DeepSeek API Error');
                 }
 
-                const choice = data.choices[0];
-                res.writeHead(200, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ code: choice.message.content, finish_reason: choice.finish_reason }));
+                // SSE 响应头
+                res.writeHead(200, {
+                    'Content-Type': 'text/event-stream',
+                    'Cache-Control': 'no-cache',
+                    'Connection': 'keep-alive'
+                });
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                let fullContent = '';
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            const dataStr = line.slice(6).trim();
+                            if (dataStr === '[DONE]') continue;
+                            try {
+                                const chunk = JSON.parse(dataStr);
+                                const delta = chunk.choices?.[0]?.delta?.content || '';
+                                if (delta) {
+                                    fullContent += delta;
+                                    res.write(`data: ${JSON.stringify({ content: delta, full: fullContent })}\n\n`);
+                                }
+                            } catch (e) { /* 跳过解析错误 */ }
+                        }
+                    }
+                }
+
+                // 发送完成信号
+                res.write(`data: ${JSON.stringify({ done: true, full: fullContent })}\n\n`);
+                res.end();
             } catch (error) {
                 console.error('API Error:', error);
-                res.writeHead(500, { 'Content-Type': 'application/json' });
-                res.end(JSON.stringify({ error: error.message }));
+                res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
+                res.end();
             }
         });
     }

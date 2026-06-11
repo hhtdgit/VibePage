@@ -60,7 +60,7 @@ class WindowManager {
                 <button class="fullscreen-btn" onclick="windowManager.fullscreenWindow('${id}')" title="全屏">⛶</button>
             </div>
             <div class="window-body">
-                <iframe srcdoc='<div style="display:flex;justify-content:center;align-items:center;height:200px;background:#1a1a2e;color:#555;font-family:system-ui;font-size:14px;">加载中...</div>' sandbox="allow-scripts allow-same-origin"></iframe>
+                <iframe srcdoc='<div style="display:flex;justify-content:center;align-items:center;height:700px;background:#1a1a2e;color:#555;font-family:system-ui;font-size:14px;">加载中...</div>' sandbox="allow-scripts allow-same-origin allow-modals"></iframe>
             </div>
         `;
 
@@ -251,6 +251,29 @@ class WindowManager {
         if (overlay) overlay.remove();
         const iframe = win.element.querySelector('iframe');
         if (iframe) iframe.style.pointerEvents = '';
+    }
+
+    /**
+     * 在窗口标题栏显示转圈指示器（流式加载中）
+     */
+    showHeaderSpinner(windowId) {
+        const win = this.getWindow(windowId);
+        if (!win) return;
+        const header = win.element.querySelector('.window-header');
+        if (header.querySelector('.header-spinner')) return;
+        const spinner = document.createElement('span');
+        spinner.className = 'header-spinner';
+        header.appendChild(spinner);
+    }
+
+    /**
+     * 隐藏标题栏转圈指示器
+     */
+    hideHeaderSpinner(windowId) {
+        const win = this.getWindow(windowId);
+        if (!win) return;
+        const spinner = win.element.querySelector('.header-spinner');
+        if (spinner) spinner.remove();
     }
 
     // ============ 任务栏管理 ============

@@ -32,7 +32,7 @@ class WindowManager {
         <span class="window-title">${appTitle}</span>
       </div>
       <div class="window-body">
-        <iframe srcdoc='<div style="display:flex;justify-content:center;align-items:center;height:100%;background:#1a1a2e;color:#555;font-family:system-ui;font-size:14px;">加载中...</div>' sandbox="allow-scripts allow-same-origin"></iframe>
+        <iframe srcdoc='<div style="display:flex;justify-content:center;align-items:center;height:100%;background:#1a1a2e;color:#555;font-family:system-ui;font-size:14px;">加载中...</div>' sandbox="allow-scripts allow-same-origin allow-modals"></iframe>
       </div>
     `;
 
