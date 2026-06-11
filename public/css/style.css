@@ -224,22 +224,31 @@ body {
     gap: 6px;
 }
 
-/* 全屏按钮 */
-.fullscreen-btn {
+/* 窗口操作按钮统一样式 */
+.fullscreen-btn,
+.window-save-btn {
     background: none;
     border: none;
     color: rgba(255, 255, 255, 0.35);
-    font-size: 16px;
+    font-size: 14px;
     cursor: pointer;
     padding: 2px 6px;
     border-radius: 4px;
     transition: all 0.2s;
     line-height: 1;
-    margin-left: auto;
     flex-shrink: 0;
 }
 
-.fullscreen-btn:hover {
+.window-save-btn {
+    font-size: 15px;
+}
+
+.fullscreen-btn {
+    margin-left: auto;
+}
+
+.fullscreen-btn:hover,
+.window-save-btn:hover {
     color: rgba(255, 255, 255, 0.9);
     background: rgba(255, 255, 255, 0.1);
 }

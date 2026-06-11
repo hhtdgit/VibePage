@@ -57,6 +57,7 @@ class WindowManager {
                     <button class="control-btn minimize" onclick="windowManager.minimizeWindow('${id}')"></button>
                 </div>
                 <span class="window-title">${appTitle}</span>
+                <button class="window-save-btn" onclick="windowManager.saveSnapshot('${id}')" title="保存应用快照">💾</button>
                 <button class="fullscreen-btn" onclick="windowManager.fullscreenWindow('${id}')" title="全屏">⛶</button>
             </div>
             <div class="window-body">
@@ -160,6 +161,61 @@ class WindowManager {
                 iframe.msRequestFullscreen();
             }
         }
+    }
+
+    /**
+     * 保存快照到 localStorage 并下载到本地文件
+     */
+    saveSnapshot(windowId) {
+        const win = this.getWindow(windowId);
+        if (!win) return;
+        const iframe = win.element.querySelector('iframe');
+        try {
+            const html = iframe.srcdoc;
+            const key = `vibepage_snapshot_${win.appName}`;
+            localStorage.setItem(key, html);
+
+            // 下载到本地
+            const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${win.appName}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // 闪烁提示
+            const icon = win.element.querySelector('.window-save-btn');
+            if (icon) {
+                icon.textContent = '✅';
+                setTimeout(() => { icon.textContent = '💾'; }, 1500);
+            }
+        } catch (e) {
+            console.error('保存快照失败:', e);
+        }
+    }
+
+    /**
+     * 加载已保存的快照
+     * @returns {string|null} 保存的 HTML 或 null
+     */
+    static loadSnapshot(appName) {
+        try {
+            return localStorage.getItem(`vibepage_snapshot_${appName}`);
+        } catch (e) {
+            return null;
+        }
+    }
+
+    /**
+     * 删除快照
+     */
+    static removeSnapshot(appName) {
+        try {
+            localStorage.removeItem(`vibepage_snapshot_${appName}`);
+        } catch (e) { /* ignore */ }
     }
 
     /**
