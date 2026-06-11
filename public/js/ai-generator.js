@@ -6,7 +6,6 @@ class AIGenerator {
     constructor(apiBaseUrl = '/api/generate') {
         this.cache = new Map();
         this.apiBaseUrl = apiBaseUrl;
-        this.onChunk = null; // callback(partialHtml) 边生成边渲染
     }
 
     /**
@@ -21,9 +20,10 @@ class AIGenerator {
 
     /**
      * 通用 SSE 流式请求
+     * @param {function} onChunk - 每收到一个 token 块的回调(partialHtml)
      * @returns {Promise<string>} 完整的 HTML
      */
-    async _streamRequest(systemPrompt, userPrompt) {
+    async _streamRequest(systemPrompt, userPrompt, onChunk = null) {
         const response = await fetch(this.apiBaseUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -59,7 +59,7 @@ class AIGenerator {
                     if (data.full) {
                         fullContent = data.full;
                         const cleaned = this._cleanCode(data.full);
-                        if (this.onChunk) this.onChunk(cleaned);
+                        if (onChunk) onChunk(cleaned);
                     }
                 }
             }
@@ -134,13 +134,14 @@ class AIGenerator {
      * 生成应用的 HTML 代码（流式）
      * @param {string} appName - 应用名称
      * @param {string} userPrompt - 额外提示词
+     * @param {function} onChunk - 每收到 token 块的回调(partialHtml)，独立于其他请求
      * @returns {Promise<string>} 完整的 HTML 字符串
      */
-    async generateApp(appName, userPrompt = '') {
+    async generateApp(appName, userPrompt = '', onChunk = null) {
         const cacheKey = `${appName}_${userPrompt}`;
         if (this.cache.has(cacheKey)) {
             const cached = this.cache.get(cacheKey);
-            if (this.onChunk) this.onChunk(cached);
+            if (onChunk) onChunk(cached);
             return cached;
         }
 
@@ -149,23 +150,24 @@ class AIGenerator {
         try {
             let code = await this._streamRequest(
                 systemPrompt,
-                `生成一个可直接运行的"${appName}"网页，仅返回HTML代码`
+                `生成一个可直接运行的"${appName}"网页，仅返回HTML代码`,
+                onChunk
             );
 
             // 检测截断
             if (!code.toLowerCase().includes('</html>')) {
                 code = this.getTruncatedApp(appName);
-                if (this.onChunk) this.onChunk(code);
+                if (onChunk) onChunk(code);
                 return code;
             }
 
             this.cache.set(cacheKey, code);
-            if (this.onChunk) this.onChunk(code);
+            if (onChunk) onChunk(code);
             return code;
         } catch (error) {
             console.error('AI 生成失败:', error);
             const fallback = this.getFallbackApp(appName, error.message);
-            if (this.onChunk) this.onChunk(fallback);
+            if (onChunk) onChunk(fallback);
             return fallback;
         }
     }
@@ -175,28 +177,29 @@ class AIGenerator {
      * @param {string} appName - 应用名称
      * @param {string} userPrompt - 用户的具体请求
      * @param {string} context - 当前页面上下文描述
+     * @param {function} onChunk - 每收到 token 块的回调(partialHtml)，独立于其他请求
      * @returns {Promise<string>}
      */
-    async regenerateApp(appName, userPrompt = '', context = '') {
+    async regenerateApp(appName, userPrompt = '', context = '', onChunk = null) {
         const contextPrompt = context ? `\n当前页面状态：${context}` : '';
         const fullPrompt = `继续之前生成的"${appName}"应用。${userPrompt}${contextPrompt}\n直接输出完整的HTML页面。`;
 
         try {
-            let code = await this._streamRequest(this._buildSystemPrompt(), fullPrompt);
+            let code = await this._streamRequest(this._buildSystemPrompt(), fullPrompt, onChunk);
 
             // 检测截断
             if (!code.toLowerCase().includes('</html>')) {
                 code = this.getTruncatedApp(appName);
-                if (this.onChunk) this.onChunk(code);
+                if (onChunk) onChunk(code);
                 return code;
             }
 
-            if (this.onChunk) this.onChunk(code);
+            if (onChunk) onChunk(code);
             return code;
         } catch (error) {
             console.error('AI 重新生成失败:', error);
             const fallback = this.getFallbackApp(appName, error.message);
-            if (this.onChunk) this.onChunk(fallback);
+            if (onChunk) onChunk(fallback);
             return fallback;
         }
     }

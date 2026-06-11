@@ -7,6 +7,39 @@
 const windowManager = new WindowManager();
 const aiGenerator = new AIGenerator();
 
+// ============ 渲染队列（最多 3 个并发） ============
+const MAX_CONCURRENT = 3;
+let _activeCount = 0;
+const _pendingQueue = [];
+
+function _dequeue() {
+    if (_pendingQueue.length > 0 && _activeCount < MAX_CONCURRENT) {
+        const next = _pendingQueue.shift();
+        next();
+    }
+}
+
+function enqueue(fn) {
+    return new Promise((resolve, reject) => {
+        const task = async () => {
+            _activeCount++;
+            try {
+                resolve(await fn());
+            } catch (e) {
+                reject(e);
+            } finally {
+                _activeCount--;
+                _dequeue();
+            }
+        };
+        if (_activeCount < MAX_CONCURRENT) {
+            task();
+        } else {
+            _pendingQueue.push(task);
+        }
+    });
+}
+
 // ============ UI 辅助 ============
 function showLoadingInWindow(win, title) {
     const iframe = win.element.querySelector('iframe');
@@ -20,33 +53,64 @@ function showAppInWindow(win, title, html) {
 }
 
 /**
- * 创建流式渲染处理器（每1秒更新一次 iframe，避免频闪）
+ * 创建流式渲染处理器（每 1 秒刷新，保留滚动位置）
  */
 function createStreamHandler(iframe) {
     let timer = null;
     let lastUpdate = 0;
     const THROTTLE_MS = 1000;
 
+    let scrollPercent = 0;
+    let scrollLeft = 0;
+
+    function saveScroll() {
+        try {
+            const d = iframe.contentDocument || iframe.contentWindow.document;
+            const sh = d.documentElement.scrollHeight || d.body.scrollHeight || 1;
+            scrollPercent = (d.documentElement.scrollTop || d.body.scrollTop || 0) / sh;
+            scrollLeft = d.documentElement.scrollLeft || d.body.scrollLeft || 0;
+        } catch (e) { scrollPercent = 0; scrollLeft = 0; }
+    }
+
+    function restoreScroll() {
+        try {
+            const d = iframe.contentDocument || iframe.contentWindow.document;
+            const sh = d.documentElement.scrollHeight || d.body.scrollHeight || 1;
+            const top = scrollPercent * sh;
+            d.documentElement.scrollTop = top;
+            d.body.scrollTop = top;
+            d.documentElement.scrollLeft = scrollLeft;
+            d.body.scrollLeft = scrollLeft;
+        } catch (e) { /* 跨域或未加载 */ }
+    }
+
+    let pendingLoad = null;
+
     return (html) => {
         const now = Date.now();
-        if (now - lastUpdate > THROTTLE_MS) {
+
+        const doUpdate = () => {
+            saveScroll();
             iframe.srcdoc = html;
+            if (pendingLoad) iframe.removeEventListener('load', pendingLoad);
+            pendingLoad = () => { restoreScroll(); pendingLoad = null; };
+            iframe.addEventListener('load', pendingLoad, { once: true });
             lastUpdate = now;
+        };
+
+        if (now - lastUpdate > THROTTLE_MS) {
+            doUpdate();
             if (timer) { clearTimeout(timer); timer = null; }
         } else {
             if (timer) clearTimeout(timer);
-            timer = setTimeout(() => {
-                iframe.srcdoc = html;
-                lastUpdate = Date.now();
-                timer = null;
-            }, THROTTLE_MS);
+            timer = setTimeout(doUpdate, THROTTLE_MS);
         }
     };
 }
 
 /**
  * 打开应用（已打开的则置前，否则新建）
- * 流式渲染：边生成边刷新 iframe（每 1 秒刷新一次）
+ * 一次渲染：加载中提示 → 完整内容就绪后一次性显示
  * @param {string} appName - 应用标识
  * @param {string} appTitle - 显示标题
  * @param {string} icon - 显示的图标 emoji
@@ -67,12 +131,12 @@ async function openApp(appName, appTitle, icon = '📄') {
     showLoadingInWindow(win, appTitle);
     windowManager.showHeaderSpinner(windowId);
 
-    // 流式渲染（每 1 秒刷新 iframe）
-    aiGenerator.onChunk = createStreamHandler(iframe);
-    const html = await aiGenerator.generateApp(appName);
+    // 加入渲染队列（最多 3 个并发）
+    const html = await enqueue(() =>
+        aiGenerator.generateApp(appName, '', createStreamHandler(iframe))
+    );
     showAppInWindow(win, `🤖 ${appTitle}`, html);
 
-    aiGenerator.onChunk = null;
     windowManager.hideHeaderSpinner(windowId);
 
     // 内容加载后自适应高度
@@ -80,7 +144,7 @@ async function openApp(appName, appTitle, icon = '📄') {
 }
 
 /**
- * AI 重新渲染窗口内容（标题栏转圈 + 流式更新，不阻塞 iframe）
+ * AI 重新渲染窗口内容（标题栏转圈 + 流式更新，保留滚动位置）
  */
 async function reRenderApp(windowId, prompt, context) {
     const win = windowManager.getWindow(windowId);
@@ -88,18 +152,18 @@ async function reRenderApp(windowId, prompt, context) {
 
     const iframe = win.element.querySelector('iframe');
 
-    // 标题栏加载指示 + 流式渐进渲染（不阻塞 iframe 交互）
+    // 标题栏加载指示 + 加入渲染队列
     windowManager.showHeaderSpinner(windowId);
-    aiGenerator.onChunk = createStreamHandler(iframe);
 
-    const html = await aiGenerator.regenerateApp(win.appName, prompt, context);
+    const html = await enqueue(() =>
+        aiGenerator.regenerateApp(win.appName, prompt, context, createStreamHandler(iframe))
+    );
 
     if (iframe) {
         iframe.srcdoc = html;
         win.element.querySelector('.window-title').textContent = `🤖 ${win.appTitle}`;
     }
 
-    aiGenerator.onChunk = null;
     windowManager.hideHeaderSpinner(windowId);
     windowManager.fitIframeContent(windowId);
     windowManager.bringToFront(windowId);
@@ -229,6 +293,22 @@ document.addEventListener('DOMContentLoaded', () => {
         hideSuggestions();
         searchInput.value = '';
         openApp(text, text, '🔍');
+    });
+
+    // 全屏切换（按钮 + F11）
+    function toggleFullscreen() {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            document.documentElement.requestFullscreen();
+        }
+    }
+    document.getElementById('fullscreen-btn').addEventListener('click', toggleFullscreen);
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'F11') {
+            e.preventDefault();
+            toggleFullscreen();
+        }
     });
 
     // Dock 启动器点击触发
