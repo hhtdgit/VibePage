@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VibePage - 全幻觉页面</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+    <!-- 桌面背景 -->
+    <div class="desktop" id="desktop">
+        <!-- 全局搜索框 -->
+        <div class="search-bar">
+            <input type="text" placeholder="🔍 搜索应用并启动..." id="searchInput" autocomplete="off">
+            <div id="suggestions" class="search-suggestions"></div>
+        </div>
+
+        <!-- 窗口容器（动态插入） -->
+        <div id="window-container"></div>
+    </div>
+
+    <!-- 底部任务栏 -->
+    <div class="dock">
+        <!-- 启动器图标 -->
+        <div class="dock-launchers">
+            <div class="dock-item dock-launcher" data-app="notes" title="备忘录">
+                <span>📝</span>
+            </div>
+            <div class="dock-item dock-launcher" data-app="calculator" title="计算器">
+                <span>🧮</span>
+            </div>
+            <div class="dock-item dock-launcher" data-app="browser" title="浏览器">
+                <span>🌐</span>
+            </div>
+            <div class="dock-item dock-launcher" data-app="terminal" title="终端">
+                <span>💻</span>
+            </div>
+            <div class="dock-item dock-launcher" data-app="music" title="音乐">
+                <span>🎵</span>
+            </div>
+        </div>
+
+        <!-- 分隔线 -->
+        <div class="dock-separator"></div>
+
+        <!-- 正在运行的应用 -->
+        <div id="dock-tasks"></div>
+    </div>
+
+    <!-- JS 模块 -->
+    <script src="js/window-manager.js"></script>
+    <script src="js/ai-generator.js"></script>
+    <script src="js/app.js"></script>
+</body>
+
+</html>

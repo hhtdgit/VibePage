@@ -1,0 +1,21 @@
+{
+  "name": "vibepage",
+  "version": "1.0.0",
+  "description": "VibePage - AI 驱动的全幻觉页面",
+  "main": "server.js",
+  "bin": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npx pkg . --targets node18-win-x64 --output dist/VibePage.exe"
+  },
+  "pkg": {
+    "assets": [
+      "public/**/*",
+      "config.json"
+    ]
+  },
+  "keywords": ["ai", "os", "desktop"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {}
+}
