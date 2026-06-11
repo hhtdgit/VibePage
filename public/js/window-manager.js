@@ -175,12 +175,12 @@ class WindowManager {
             const key = `vibepage_snapshot_${win.appName}`;
             localStorage.setItem(key, html);
 
-            // 下载到本地
+            // 下载到本地（用按钮显示名作为文件名）
             const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `${win.appName}.html`;
+            a.download = `${win.appTitle}.html`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);

@@ -129,15 +129,6 @@ async function openApp(appName, appTitle, icon = '📄') {
     const iframe = win.element.querySelector('iframe');
 
     showLoadingInWindow(win, appTitle);
-
-    // 检查是否有已保存的快照
-    const saved = WindowManager.loadSnapshot(appName);
-    if (saved) {
-        showAppInWindow(win, `💾 ${appTitle}`, saved);
-        windowManager.fitIframeContent(windowId);
-        return;
-    }
-
     windowManager.showHeaderSpinner(windowId);
 
     // 加入渲染队列（最多 3 个并发）
@@ -147,7 +138,7 @@ async function openApp(appName, appTitle, icon = '📄') {
     showAppInWindow(win, `🤖 ${appTitle}`, html);
 
     // 生成完成后自动保存快照
-    try { localStorage.setItem(`vibepage_snapshot_${appName}`, iframe.srcdoc); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(`vibepage_snapshot_${appName}`, html); } catch (e) { console.warn('快照保存失败:', e); }
 
     windowManager.hideHeaderSpinner(windowId);
 
@@ -175,7 +166,7 @@ async function reRenderApp(windowId, prompt, context) {
         iframe.srcdoc = html;
         win.element.querySelector('.window-title').textContent = `🤖 ${win.appTitle}`;
         // 重新渲染后自动更新快照
-        try { localStorage.setItem(`vibepage_snapshot_${win.appName}`, iframe.srcdoc); } catch (e) { /* ignore */ }
+        try { localStorage.setItem(`vibepage_snapshot_${win.appName}`, html); } catch (e) { console.warn('快照保存失败:', e); }
     }
 
     windowManager.hideHeaderSpinner(windowId);
@@ -327,27 +318,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const file = e.target.files[0];
         if (!file) return;
         const html = await file.text();
-        // 用文件名（不含扩展名）作为应用名
         let appName = file.name.replace(/\.html$/i, '');
-        // 重名检测：已有快照则询问是否覆盖或改名
-        const existing = WindowManager.loadSnapshot(appName);
-        if (existing) {
-            const choice = confirm(`"${appName}" 已有保存的快照。\n确定覆盖吗？\n\n点「取消」可换个应用名导入。`);
-            if (!choice) {
+
+        // 重名检测
+        const existingWin = windowManager.findOpenApp(appName);
+        const hasSnapshot = WindowManager.loadSnapshot(appName);
+        if (existingWin || hasSnapshot) {
+            const msg = `"${appName}" 已存在。\n确定覆盖吗？\n\n点「取消」可换个应用名导入。`;
+            if (!confirm(msg)) {
                 const newName = prompt(`请输入新的应用名：`, `${appName}-导入`);
                 if (!newName) { importInput.value = ''; return; }
                 appName = newName;
             }
         }
-        // 打开新窗口
-        const windowId = windowManager.createWindow(appName, `📂 ${appName}`);
-        const win = windowManager.getWindow(windowId);
-        const iframe = win.element.querySelector('iframe');
-        iframe.srcdoc = html;
-        win.element.querySelector('.window-title').textContent = `📂 ${appName}`;
-        windowManager.fitIframeContent(windowId);
-        // 保存快照
-        try { localStorage.setItem(`vibepage_snapshot_${appName}`, html); } catch (e) { /* ignore */ }
+
+        // 复用已有窗口或新建
+        let win;
+        const reuse = windowManager.findOpenApp(appName);
+        if (reuse) {
+            win = reuse;
+            win.element.querySelector('iframe').srcdoc = html;
+            win.element.querySelector('.window-title').textContent = `📂 ${appName}`;
+            windowManager.bringToFront(reuse.id);
+        } else {
+            const windowId = windowManager.createWindow(appName, `📂 ${appName}`);
+            win = windowManager.getWindow(windowId);
+            win.element.querySelector('iframe').srcdoc = html;
+            win.element.querySelector('.window-title').textContent = `📂 ${appName}`;
+        }
+        windowManager.fitIframeContent(win.id);
+        try { localStorage.setItem(`vibepage_snapshot_${appName}`, html); } catch (e) { console.warn('快照保存失败:', e); }
         importInput.value = '';
     });
 
