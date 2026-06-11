@@ -12,24 +12,22 @@ class AIGenerator {
     /**
      * 构建生成请求体
      */
-    _buildPayload(systemPrompt, userPrompt, preview = false) {
+    _buildPayload(systemPrompt, userPrompt) {
         return {
             systemPrompt,
-            userPrompt,
-            preview
+            userPrompt
         };
     }
 
     /**
      * 通用 SSE 流式请求
-     * @param {boolean} preview - 预览模式（小 token 快速骨架）
      * @returns {Promise<string>} 完整的 HTML
      */
-    async _streamRequest(systemPrompt, userPrompt, preview = false) {
+    async _streamRequest(systemPrompt, userPrompt) {
         const response = await fetch(this.apiBaseUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(this._buildPayload(systemPrompt, userPrompt, preview))
+            body: JSON.stringify(this._buildPayload(systemPrompt, userPrompt))
         });
 
         if (!response.ok) {
@@ -133,19 +131,6 @@ class AIGenerator {
     }
 
     /**
-     * 构建预览模式的系统提示词（轻量骨架）
-     */
-    _buildPreviewPrompt() {
-        return `你是一个HTML代码生成器。只输出纯HTML代码，不输出任何解释。
-
-只生成页面的布局骨架，包含：
-- 标题
-- 用浅色占位框表示内容区域
-- 基础CSS样式（背景色、字体、间距）
-不需要任何JavaScript交互逻辑，所有内容用占位元素展示。`;
-    }
-
-    /**
      * 生成应用的 HTML 代码（流式）
      * @param {string} appName - 应用名称
      * @param {string} userPrompt - 额外提示词
@@ -182,25 +167,6 @@ class AIGenerator {
             const fallback = this.getFallbackApp(appName, error.message);
             if (this.onChunk) this.onChunk(fallback);
             return fallback;
-        }
-    }
-
-    /**
-     * 预览生成（快速骨架，小 token，流式）
-     * 在完整版生成前先展示布局，提升感知速度
-     */
-    async generatePreview(appName) {
-        try {
-            const code = await this._streamRequest(
-                this._buildPreviewPrompt(),
-                `生成"${appName}"的页面布局骨架，仅返回HTML代码`,
-                true // preview = true → 服务端 max_tokens: 800
-            );
-            if (this.onChunk) this.onChunk(code);
-            return code;
-        } catch (error) {
-            console.error('预览生成失败（忽略，等待完整版）:', error);
-            return '';
         }
     }
 

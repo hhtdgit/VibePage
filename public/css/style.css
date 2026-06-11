@@ -195,6 +195,14 @@ body {
     text-overflow: ellipsis;
 }
 
+.window-title.header-loading {
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
 /* 全屏按钮 */
 .fullscreen-btn {
     background: none;
@@ -405,6 +413,13 @@ body {
 
 @keyframes headerSpin {
     to { transform: rotate(360deg); }
+}
+
+/* ============ 标题栏加载文字 ============ */
+.header-loading-text {
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 12px;
+    flex-shrink: 0;
 }
 
 /* ============ 滚动条美化 ============ */

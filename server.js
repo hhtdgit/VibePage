@@ -90,7 +90,7 @@ function checkPortInUse(port) {
         req.on('data', chunk => body += chunk);
         req.on('end', async () => {
             try {
-                const { systemPrompt, userPrompt, preview } = JSON.parse(body);
+                const { systemPrompt, userPrompt } = JSON.parse(body);
 
                 const response = await fetch(API_URL, {
                     method: 'POST',
@@ -105,7 +105,7 @@ function checkPortInUse(port) {
                             { role: 'user', content: userPrompt }
                         ],
                         temperature: 0.7,
-                        max_tokens: preview ? 800 : 20000,
+                        max_tokens: 20000,
                         stream: true
                     })
                 });

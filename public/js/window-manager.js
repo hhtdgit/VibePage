@@ -254,26 +254,30 @@ class WindowManager {
     }
 
     /**
-     * 在窗口标题栏显示转圈指示器（流式加载中）
+     * 在标题栏居中显示转圈 + "加载中，请稍后"（流式加载中）
      */
     showHeaderSpinner(windowId) {
         const win = this.getWindow(windowId);
         if (!win) return;
-        const header = win.element.querySelector('.window-header');
-        if (header.querySelector('.header-spinner')) return;
-        const spinner = document.createElement('span');
-        spinner.className = 'header-spinner';
-        header.appendChild(spinner);
+        const title = win.element.querySelector('.window-title');
+        if (title.dataset.origText) return; // 已加载中
+        title.dataset.origText = title.textContent;
+        title.innerHTML = '<span class="header-spinner"></span><span class="header-loading-text">加载中，请稍后</span>';
+        title.classList.add('header-loading');
     }
 
     /**
-     * 隐藏标题栏转圈指示器
+     * 隐藏标题栏加载指示，恢复应用名
      */
     hideHeaderSpinner(windowId) {
         const win = this.getWindow(windowId);
         if (!win) return;
-        const spinner = win.element.querySelector('.header-spinner');
-        if (spinner) spinner.remove();
+        const title = win.element.querySelector('.window-title');
+        if (title.dataset.origText) {
+            title.textContent = title.dataset.origText;
+            delete title.dataset.origText;
+            title.classList.remove('header-loading');
+        }
     }
 
     // ============ 任务栏管理 ============

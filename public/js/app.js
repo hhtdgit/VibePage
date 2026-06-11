@@ -46,7 +46,7 @@ function createStreamHandler(iframe) {
 
 /**
  * 打开应用（已打开的则置前，否则新建）
- * 采用"骨架优先"策略：先快速生成布局骨架，再生成完整版替换
+ * 流式渲染：边生成边刷新 iframe（每 1 秒刷新一次）
  * @param {string} appName - 应用标识
  * @param {string} appTitle - 显示标题
  * @param {string} icon - 显示的图标 emoji
@@ -67,11 +67,7 @@ async function openApp(appName, appTitle, icon = '📄') {
     showLoadingInWindow(win, appTitle);
     windowManager.showHeaderSpinner(windowId);
 
-    // 第 1 步：快速骨架（流式渲染到 iframe）
-    aiGenerator.onChunk = createStreamHandler(iframe);
-    await aiGenerator.generatePreview(appName);
-
-    // 第 2 步：完整版（流式替换骨架）
+    // 流式渲染（每 1 秒刷新 iframe）
     aiGenerator.onChunk = createStreamHandler(iframe);
     const html = await aiGenerator.generateApp(appName);
     showAppInWindow(win, `🤖 ${appTitle}`, html);
@@ -92,7 +88,7 @@ async function reRenderApp(windowId, prompt, context) {
 
     const iframe = win.element.querySelector('iframe');
 
-    // 标题栏转圈 + 流式渐进渲染（不阻塞 iframe 交互）
+    // 标题栏加载指示 + 流式渐进渲染（不阻塞 iframe 交互）
     windowManager.showHeaderSpinner(windowId);
     aiGenerator.onChunk = createStreamHandler(iframe);
 
