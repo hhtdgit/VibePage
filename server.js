@@ -105,7 +105,7 @@ function checkPortInUse(port) {
                             { role: 'user', content: userPrompt }
                         ],
                         temperature: 0.7,
-                        max_tokens: 20000,
+                        max_tokens: 25000,
                         stream: true
                     })
                 });
